@@ -1,93 +1,135 @@
-name: Update trending phrase
+name: Trending bot
 
-# Runs on a schedule + lets you trigger it manually from the Actions tab.
+# The bot "comes" at these times, does its work, then "goes" (the run ends).
 on:
   schedule:
-    - cron: "17 */6 * * *"   # every ~6 hours (GitHub may delay a little)
-  workflow_dispatch:
+    - cron: "17 1,7,13,19 * * *"   # 4x/day (UTC). GitHub may delay slightly.
+  workflow_dispatch:                # run manually anytime from the Actions tab
 
 permissions:
-  contents: write            # needed to commit the updated JSON
+  contents: write
 
 env:
-  # Any OpenRouter free model. If this one stops being free, swap it here.
-  MODEL: "meta-llama/llama-3.3-70b-instruct:free"
+  # Tried in order. If one is rate-limited (429) the next is tried. All free.
+  MODELS: "google/gemma-2-9b-it:free meta-llama/llama-3.3-70b-instruct:free mistralai/mistral-7b-instruct:free"
+  SITE: "https://amtoz.in"
+  HF_SPACE: "https://0k1nx0-ai-polygon-annotation-tool.hf.space/"
+  HAS_MAIL: ${{ secrets.MAIL_USERNAME != '' }}
 
 jobs:
-  update:
+  run:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: Generate trending phrase
+      - name: Fetch & generate trend
+        id: gen
         env:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
         run: |
           set -euo pipefail
 
-          if [ -z "${OPENROUTER_API_KEY:-}" ]; then
-            echo "::error::OPENROUTER_API_KEY secret is not set."
-            exit 1
-          fi
-
-          # 1) Pull live trending tech/AI headlines from Hacker News (free, no key).
+          # 1) Live trending headlines from Hacker News (free, no key).
           echo "Fetching Hacker News top stories…"
-          TITLES=""
-          for id in $(curl -s https://hacker-news.firebaseio.com/v0/topstories.json | jq -r '.[0:12][]'); do
+          mapfile -t IDS < <(curl -s https://hacker-news.firebaseio.com/v0/topstories.json | jq -r '.[0:12][]')
+          TITLES=""; TOP=""
+          for id in "${IDS[@]}"; do
             t=$(curl -s "https://hacker-news.firebaseio.com/v0/item/$id.json" | jq -r '.title // empty')
-            [ -n "$t" ] && TITLES="${TITLES}- ${t}"$'\n'
+            [ -z "$t" ] && continue
+            [ -z "$TOP" ] && TOP="$t"
+            TITLES="${TITLES}- ${t}"$'\n'
           done
-          echo "Headlines:"; echo "$TITLES"
+          echo "Top headline: $TOP"
 
-          SYS="You write a single punchy phrase for an AI developer's portfolio headline."
-          USER="From these trending tech headlines, write ONE short lowercase phrase (max 6 words, no quotes) capturing the hottest AI/tech trend right now. End with a period. Output only the phrase.
+          clean() { tr -d '"' | tr '\n' ' ' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' | head -c 60; }
 
-          ${TITLES}"
+          PHRASE=""; SRC=""
 
-          BODY=$(jq -n --arg model "$MODEL" --arg sys "$SYS" --arg user "$USER" \
-            '{model:$model, max_tokens:30, temperature:0.8,
-              messages:[{role:"system",content:$sys},{role:"user",content:$user}]}')
+          # 2) Try each free AI model until one works (skips entirely if no key).
+          if [ -n "${OPENROUTER_API_KEY:-}" ]; then
+            SYS="You write a single punchy phrase for an AI developer's portfolio headline."
+            USER="From these trending tech headlines, write ONE short lowercase phrase (max 6 words, no quotes) capturing the hottest AI/tech trend right now. End with a period. Output only the phrase.
 
-          # 2) Ask OpenRouter (free model). Fail loudly if credits are exhausted —
-          #    a failed run makes GitHub email you automatically.
-          echo "Calling OpenRouter ($MODEL)…"
-          RESP=$(curl -s -w $'\n%{http_code}' https://openrouter.ai/api/v1/chat/completions \
-            -H "Authorization: Bearer ${OPENROUTER_API_KEY}" \
-            -H "Content-Type: application/json" \
-            -H "X-Title: Portfolio Trending Bot" \
-            -d "$BODY")
-          CODE=$(printf '%s' "$RESP" | tail -n1)
-          JSON=$(printf '%s' "$RESP" | sed '$d')
-
-          if [ "$CODE" != "200" ]; then
-            echo "::error::OpenRouter returned HTTP $CODE (likely out of free credits). Response: $JSON"
-            exit 1
+            ${TITLES}"
+            for M in $MODELS; do
+              echo "Trying model: $M"
+              BODY=$(jq -n --arg model "$M" --arg sys "$SYS" --arg user "$USER" \
+                '{model:$model, max_tokens:30, temperature:0.8,
+                  messages:[{role:"system",content:$sys},{role:"user",content:$user}]}')
+              RESP=$(curl -s -w $'\n%{http_code}' https://openrouter.ai/api/v1/chat/completions \
+                -H "Authorization: Bearer ${OPENROUTER_API_KEY}" \
+                -H "Content-Type: application/json" \
+                -H "X-Title: Portfolio Trending Bot" \
+                -d "$BODY")
+              CODE=$(printf '%s' "$RESP" | tail -n1)
+              JSON=$(printf '%s' "$RESP" | sed '$d')
+              if [ "$CODE" = "200" ]; then
+                P=$(printf '%s' "$JSON" | jq -r '.choices[0].message.content // empty' | clean)
+                if [ -n "$P" ]; then PHRASE="$P"; SRC="OpenRouter ($M)"; echo "✅ Got phrase from $M"; break; fi
+              fi
+              echo "…$M unavailable (HTTP $CODE), trying next."
+            done
+          else
+            echo "No OPENROUTER_API_KEY set — using headline fallback."
           fi
 
-          PHRASE=$(printf '%s' "$JSON" | jq -r '.choices[0].message.content // empty' \
-            | tr -d '"' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' | head -c 60)
-
+          # 3) Fallback: derive a phrase from the top headline. Always succeeds.
           if [ -z "$PHRASE" ]; then
-            echo "::error::Empty phrase from model. Response: $JSON"
-            exit 1
+            PHRASE=$(printf '%s' "$TOP" | tr '[:upper:]' '[:lower:]' \
+              | awk '{n=(NF<6?NF:6); for(i=1;i<=n;i++) printf "%s%s", $i, (i<n?" ":"")}' \
+              | sed 's/[[:punct:]]*$//')
+            PHRASE="${PHRASE}."
+            SRC="Hacker News (headline)"
+            echo "Using fallback phrase."
           fi
-          echo "New phrase: $PHRASE"
+          echo "Phrase: $PHRASE"
 
-          # 3) Write the file the website reads.
-          jq -n --arg phrase "$PHRASE" \
-                --arg src "Hacker News + OpenRouter ($MODEL)" \
-                --arg t "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-            '{phrase:$phrase, source:$src, updatedAt:$t}' > data/trending.json
-          cat data/trending.json
+          OLD=$(jq -r '.phrase // ""' data/trending.json 2>/dev/null || echo "")
+          NOW=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          if [ "$PHRASE" = "$OLD" ]; then
+            echo "No change — nothing to do."
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            jq -n --arg phrase "$PHRASE" --arg src "$SRC" --arg t "$NOW" \
+              '{phrase:$phrase, source:$src, updatedAt:$t}' > data/trending.json
+            cat data/trending.json
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            { echo "phrase=$PHRASE"; echo "src=$SRC"; echo "time=$NOW"; } >> "$GITHUB_OUTPUT"
+          fi
 
-      - name: Commit if changed
+      - name: Commit new trend
+        if: steps.gen.outputs.changed == 'true'
         run: |
           git config user.name "trending-bot"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add data/trending.json
-          if git diff --staged --quiet; then
-            echo "No change."
-          else
-            git commit -m "chore: refresh trending phrase"
-            git push
-          fi
+          git commit -m "chore: new trend — ${{ steps.gen.outputs.phrase }}"
+          git push
+
+      - name: Email new trend
+        if: steps.gen.outputs.changed == 'true' && env.HAS_MAIL == 'true'
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 465
+          secure: true
+          username: ${{ secrets.MAIL_USERNAME }}
+          password: ${{ secrets.MAIL_PASSWORD }}
+          subject: "🔥 New AI trend is live on amtoz.in"
+          to: kingabdullah9194@gmail.com
+          from: Portfolio Bot <${{ secrets.MAIL_USERNAME }}>
+          body: |
+            Your portfolio just updated with a new trending phrase:
+
+              "${{ steps.gen.outputs.phrase }}"
+
+            Source : ${{ steps.gen.outputs.src }}
+            Updated: ${{ steps.gen.outputs.time }}
+            Live    : https://amtoz.in
+
+      - name: Keep services warm
+        if: always()
+        run: |
+          curl -s -o /dev/null "${SITE}" || true
+          curl -s -o /dev/null "${HF_SPACE}" || true
+          echo "Pinged site and HF Space."

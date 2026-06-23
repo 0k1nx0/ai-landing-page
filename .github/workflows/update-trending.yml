@@ -1,0 +1,93 @@
+name: Update trending phrase
+
+# Runs on a schedule + lets you trigger it manually from the Actions tab.
+on:
+  schedule:
+    - cron: "17 */6 * * *"   # every ~6 hours (GitHub may delay a little)
+  workflow_dispatch:
+
+permissions:
+  contents: write            # needed to commit the updated JSON
+
+env:
+  # Any OpenRouter free model. If this one stops being free, swap it here.
+  MODEL: "meta-llama/llama-3.3-70b-instruct:free"
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Generate trending phrase
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${OPENROUTER_API_KEY:-}" ]; then
+            echo "::error::OPENROUTER_API_KEY secret is not set."
+            exit 1
+          fi
+
+          # 1) Pull live trending tech/AI headlines from Hacker News (free, no key).
+          echo "Fetching Hacker News top stories…"
+          TITLES=""
+          for id in $(curl -s https://hacker-news.firebaseio.com/v0/topstories.json | jq -r '.[0:12][]'); do
+            t=$(curl -s "https://hacker-news.firebaseio.com/v0/item/$id.json" | jq -r '.title // empty')
+            [ -n "$t" ] && TITLES="${TITLES}- ${t}"$'\n'
+          done
+          echo "Headlines:"; echo "$TITLES"
+
+          SYS="You write a single punchy phrase for an AI developer's portfolio headline."
+          USER="From these trending tech headlines, write ONE short lowercase phrase (max 6 words, no quotes) capturing the hottest AI/tech trend right now. End with a period. Output only the phrase.
+
+          ${TITLES}"
+
+          BODY=$(jq -n --arg model "$MODEL" --arg sys "$SYS" --arg user "$USER" \
+            '{model:$model, max_tokens:30, temperature:0.8,
+              messages:[{role:"system",content:$sys},{role:"user",content:$user}]}')
+
+          # 2) Ask OpenRouter (free model). Fail loudly if credits are exhausted —
+          #    a failed run makes GitHub email you automatically.
+          echo "Calling OpenRouter ($MODEL)…"
+          RESP=$(curl -s -w $'\n%{http_code}' https://openrouter.ai/api/v1/chat/completions \
+            -H "Authorization: Bearer ${OPENROUTER_API_KEY}" \
+            -H "Content-Type: application/json" \
+            -H "X-Title: Portfolio Trending Bot" \
+            -d "$BODY")
+          CODE=$(printf '%s' "$RESP" | tail -n1)
+          JSON=$(printf '%s' "$RESP" | sed '$d')
+
+          if [ "$CODE" != "200" ]; then
+            echo "::error::OpenRouter returned HTTP $CODE (likely out of free credits). Response: $JSON"
+            exit 1
+          fi
+
+          PHRASE=$(printf '%s' "$JSON" | jq -r '.choices[0].message.content // empty' \
+            | tr -d '"' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' | head -c 60)
+
+          if [ -z "$PHRASE" ]; then
+            echo "::error::Empty phrase from model. Response: $JSON"
+            exit 1
+          fi
+          echo "New phrase: $PHRASE"
+
+          # 3) Write the file the website reads.
+          jq -n --arg phrase "$PHRASE" \
+                --arg src "Hacker News + OpenRouter ($MODEL)" \
+                --arg t "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            '{phrase:$phrase, source:$src, updatedAt:$t}' > data/trending.json
+          cat data/trending.json
+
+      - name: Commit if changed
+        run: |
+          git config user.name "trending-bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/trending.json
+          if git diff --staged --quiet; then
+            echo "No change."
+          else
+            git commit -m "chore: refresh trending phrase"
+            git push
+          fi

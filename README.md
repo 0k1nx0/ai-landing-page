@@ -18,30 +18,51 @@ Single self-contained `index.html` — no frameworks, no build step. Pure HTML/C
 - **Netlify:** https://app.netlify.com/drop — drag the whole `portfolio` folder.
 - **Vercel:** https://vercel.com — import or drag the folder.
 
-## 🔴 Live "trending in AI" headline (optional)
+## 🔴 Live "trending in AI" headline + bot
 
-The hero headline can cycle in a **live trend** that auto-updates. A GitHub Action
-(`.github/workflows/update-trending.yml`) runs every ~6 hours, pulls real Hacker News
-top stories, asks a **free OpenRouter model** to turn them into a short phrase, and writes
-it to `data/trending.json`. The site reads that file. If the file is missing or you skip
-this, the headline just uses its built-in phrases — nothing breaks.
+The hero headline cycles in a **live trend** that auto-updates. A GitHub Action
+(`.github/workflows/update-trending.yml`) is the "bot": on a schedule it pulls real
+Hacker News top stories, asks a **free OpenRouter model** to turn them into a short phrase,
+and — **only if it changed** — saves it to `data/trending.json`, **emails you the new trend**,
+and pings the site + Hugging Face Space to keep them warm. If nothing changed, it does nothing
+(no commit, no email). If the file is missing entirely, the headline falls back to built-in
+phrases — nothing breaks.
 
-**Setup (one time):**
-1. Get a free API key at https://openrouter.ai/keys
-2. In your GitHub repo: **Settings → Secrets and variables → Actions → New repository secret**
-   - Name: `OPENROUTER_API_KEY`
-   - Value: your key
-3. Make sure Actions can write: **Settings → Actions → General → Workflow permissions → Read and write permissions**.
-4. Trigger it once: **Actions tab → "Update trending phrase" → Run workflow**.
+**When does the bot run?** 4×/day (01:17, 07:17, 13:17, 19:17 UTC). Change the `cron:` line to
+adjust. You can also run it on demand: **Actions tab → "Trending bot" → Run workflow**.
 
-**Notes**
-- **Cost:** uses OpenRouter `:free` models — $0. Free models change names occasionally; if a run
-  fails with "model not found", edit the `MODEL:` line in the workflow.
-- **When free credits run out:** the workflow run **fails**, and GitHub **emails you automatically**
-  (this is the built-in failure notification — no extra setup). The website keeps showing the last
-  good phrase until credits reset and the next run succeeds.
-- **Make sure notifications are on:** GitHub → your **Settings → Notifications → Actions →** check
-  "Email" for failed workflows, and confirm your GitHub email is `kingabdullah9194@gmail.com`.
+### Required GitHub secrets
+Repo → **Settings → Secrets and variables → Actions → New repository secret**:
+
+| Secret | Value |
+|---|---|
+| `OPENROUTER_API_KEY` | Free key from https://openrouter.ai/keys |
+| `MAIL_USERNAME` | `kingabdullah9194@gmail.com` |
+| `MAIL_PASSWORD` | A Gmail **App Password** (see below) — NOT your normal password |
+
+**Getting the Gmail App Password** (needed so the bot can email you):
+1. Turn on 2-Step Verification: https://myaccount.google.com/security
+2. Create an app password: https://myaccount.google.com/apppasswords → name it "Portfolio Bot" → copy the 16-character code.
+3. Paste that code as the `MAIL_PASSWORD` secret.
+
+### One more setting
+Repo → **Settings → Actions → General → Workflow permissions → "Read and write permissions"** → Save.
+(Lets the bot commit the updated JSON, which auto-redeploys GitHub Pages.)
+
+### How you'll know it worked
+- You get an **email** with the new phrase whenever it changes.
+- Visit **https://amtoz.in/data/trending.json** — `source` changes from `"seed"` to
+  `"Hacker News + OpenRouter…"` and `updatedAt` shows a recent time.
+- The headline on the site rotates the new phrase in.
+
+**Reliability (why it won't break):**
+- The bot tries **several free AI models in order** (`MODELS:` line). If one is rate-limited
+  (HTTP 429) it instantly tries the next.
+- If **all** free models are busy, it falls back to building the phrase **directly from the top
+  Hacker News headline** — no AI, no key, no credits. So a run essentially never hard-fails.
+- The **email is optional**: if you don't set `MAIL_USERNAME` / `MAIL_PASSWORD`, the bot still
+  updates the trend silently — it just won't email you.
+- **Cost:** $0. Everything uses free models / free APIs.
 
 ## Contact
 - Email: kingabdullah9194@gmail.com

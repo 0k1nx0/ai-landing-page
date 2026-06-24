@@ -230,6 +230,10 @@
   .tl-item .where { color: var(--muted); font-size: .9rem; }
   .tl-item .detail { color: var(--muted); font-size: .88rem; margin-top: 6px; }
   .verified { display: inline-flex; align-items: center; gap: 5px; font-size: .74rem; color: var(--accent-2); margin-top: 8px; font-family: "JetBrains Mono", monospace; }
+  .cert-links { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 12px; }
+  .cert-links a { display: inline-flex; align-items: center; gap: 6px; font-size: .85rem; font-weight: 600; color: var(--accent);
+    border: 1px solid var(--border); padding: 6px 12px; border-radius: 8px; transition: border-color .2s, background .2s; }
+  .cert-links a:hover { border-color: var(--accent); background: var(--accent-glow); }
 
   /* score bars */
   .scores { margin-top: 10px; display: grid; gap: 9px; }
@@ -321,6 +325,18 @@
   .hf-embed-frame iframe { width: 100%; height: 720px; border: 0; display: block; }
   @media (max-width: 600px) { .hf-embed-frame iframe { height: 560px; } }
 
+  /* ---------- HIRE ME ---------- */
+  .hire-pitch { font-size: 1.12rem; line-height: 1.6; color: var(--ink); font-weight: 500;
+    border-left: 3px solid var(--accent); padding: 4px 0 4px 18px; margin: 0 0 18px; max-width: 760px; }
+  .hire-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; margin-bottom: 32px; }
+  .hire-roles, .hire-offer { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 28px; }
+  .hire-grid h3 { font-size: 1.1rem; margin-bottom: 16px; }
+  .role-list, .offer-list { list-style: none; display: flex; flex-direction: column; gap: 12px; }
+  .role-list li { display: flex; align-items: center; gap: 12px; font-weight: 600; }
+  .role-list li span { font-size: 1.2rem; }
+  .offer-list li { color: var(--muted); }
+  .offer-list li::first-letter, .offer-list b { color: var(--ink); }
+  .hire-cta { display: flex; flex-wrap: wrap; gap: 14px; }
   /* ---------- CONTACT FORM ---------- */
   .contact-form { max-width: 440px; margin: 0 auto 24px; display: grid; gap: 12px; text-align: left; }
   .contact-form input, .contact-form textarea {
@@ -333,7 +349,7 @@
 
   /* ---------- RESPONSIVE ---------- */
   @media (max-width: 820px) {
-    .about-grid, .two-col { grid-template-columns: 1fr; gap: 32px; }
+    .about-grid, .two-col, .hire-grid { grid-template-columns: 1fr; gap: 32px; }
     .nav-links { position: fixed; inset: 60px 0 auto 0; flex-direction: column; gap: 0;
       background: var(--bg-soft); border-bottom: 1px solid var(--border); padding: 0; max-height: 0; overflow: hidden; transition: max-height .3s; }
     .nav-links.open { max-height: 320px; }
@@ -361,6 +377,7 @@
         <a href="#projects">Projects</a>
         <a href="#demo">Live Demo</a>
         <a href="#credentials">Credentials</a>
+        <a href="#hire">Hire Me</a>
         <a href="#contact">Contact</a>
       </div>
       <span class="nav-divider"></span>
@@ -653,6 +670,12 @@
               </div>
             </div>
             <span class="verified">✓ Verifiable on skillindiadigital.gov.in</span>
+            <div class="cert-links">
+              <a href="certificates/IIT-Mandi-iHub-Data-Annotator-Certificate.pdf" target="_blank" rel="noopener">
+                <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>
+                View certificate
+              </a>
+            </div>
           </div>
           <div class="tl-item">
             <div class="when">2026</div>
@@ -662,6 +685,46 @@
         </div>
       </div>
 
+    </div>
+  </div>
+</section>
+
+<!-- HIRE ME -->
+<section id="hire">
+  <div class="wrap reveal">
+    <div class="sec-label">// 06. Hire me</div>
+    <h2 class="sec-title">Available for AI &amp; data roles</h2>
+    <p class="hire-pitch">Certified AI Data Annotation Specialist (IIT Mandi iHub) with experience in image annotation, dataset validation, quality assurance, AI tooling, and computer vision workflows.</p>
+    <p class="sec-intro">Open to <b>remote</b> and on-site work. I bring certified data-annotation skills plus the ability to build the tools around the data — not just label it.</p>
+
+    <div class="hire-grid">
+      <div class="hire-roles">
+        <h3>Roles I'm targeting</h3>
+        <ul class="role-list">
+          <li><span>🎯</span> AI Data Annotation Specialist</li>
+          <li><span>🧠</span> AI Trainer / Model Evaluator</li>
+          <li><span>👁️</span> Computer Vision Engineer (Junior)</li>
+          <li><span>🔧</span> AI Tooling / Automation Developer</li>
+        </ul>
+      </div>
+      <div class="hire-offer">
+        <h3>What I bring</h3>
+        <ul class="offer-list">
+          <li>✓ NSQF Level 4 certified annotator (420 hrs, IIT Mandi iHub)</li>
+          <li>✓ Hands-on with YOLOv8, SAM, OpenCV &amp; COCO pipelines</li>
+          <li>✓ Ships real products — PolyAnnot &amp; SafeVault, deployed</li>
+          <li>✓ Reliable, detail-focused, and fast to onboard</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="hire-cta">
+      <a class="btn primary" href="#contact">Hire me →</a>
+      <a class="btn ghost" href="Abdullah_Mohammed_Resume.pdf" target="_blank" rel="noopener">
+        <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12m0 0 4-4m-4 4-4-4"/><path d="M5 21h14"/></svg>
+        Download CV
+      </a>
+      <a class="btn ghost" href="mailto:kingabdullah9194@gmail.com">Email me</a>
     </div>
   </div>
 </section>
@@ -699,7 +762,7 @@
       <a href="https://github.com/0k1nx0" target="_blank" rel="noopener" aria-label="GitHub">GitHub</a>
       <a href="https://linkedin.com/in/mohammed-abdullah-82191a380" target="_blank" rel="noopener" aria-label="LinkedIn">LinkedIn</a>
       <a href="mailto:kingabdullah9194@gmail.com" aria-label="Email">Email</a>
-      <a href="https://drshubi.com" target="_blank" rel="noopener" aria-label="Website">Website</a>
+      <a href="https://amtoz.in" target="_blank" rel="noopener" aria-label="Website">Website</a>
     </div>
     <div>© <span id="year"></span> Abdullah Mohammed · Sundernagar, Himachal Pradesh, India</div>
     <div class="mono" style="margin-top:6px;font-size:.78rem;opacity:.6;">Built from scratch — no templates.</div>
@@ -770,7 +833,7 @@
   });
 
   // scrollspy — highlight active nav link
-  const sections = ['about','skills','projects','demo','credentials','contact']
+  const sections = ['about','skills','projects','demo','credentials','hire','contact']
     .map(id => document.getElementById(id)).filter(Boolean);
   const navMap = {};
   document.querySelectorAll('.nav-links a').forEach(a => {

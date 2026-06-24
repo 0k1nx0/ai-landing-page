@@ -11,7 +11,7 @@ permissions:
 
 env:
   # Tried in order. If one is rate-limited (429) the next is tried. All free.
-  MODELS: "google/gemma-2-9b-it:free meta-llama/llama-3.3-70b-instruct:free mistralai/mistral-7b-instruct:free"
+  MODELS: "deepseek/deepseek-chat-v3-0324:free meta-llama/llama-3.3-70b-instruct:free google/gemini-2.0-flash-exp:free qwen/qwen-2.5-72b-instruct:free deepseek/deepseek-r1-0528:free google/gemma-2-9b-it:free mistralai/mistral-7b-instruct:free"
   SITE: "https://amtoz.in"
   HF_SPACE: "https://0k1nx0-ai-polygon-annotation-tool.hf.space/"
   HAS_MAIL: ${{ secrets.MAIL_USERNAME != '' }}
@@ -73,10 +73,14 @@ jobs:
             echo "No OPENROUTER_API_KEY set — using headline fallback."
           fi
 
-          # 3) Fallback: derive a phrase from the top headline. Always succeeds.
+          # 3) Fallback: derive a clean phrase from the top headline. Always succeeds.
           if [ -z "$PHRASE" ]; then
-            PHRASE=$(printf '%s' "$TOP" | tr '[:upper:]' '[:lower:]' \
-              | awk '{n=(NF<6?NF:6); for(i=1;i<=n;i++) printf "%s%s", $i, (i<n?" ":"")}' \
+            # Drop any subtitle after a colon / dash / pipe / question mark, take the main clause,
+            # lowercase it, keep up to 7 words, and end with a period.
+            PHRASE=$(printf '%s' "$TOP" \
+              | sed 's/[:?|].*//; s/ [-–—] .*//' \
+              | tr '[:upper:]' '[:lower:]' \
+              | awk '{n=(NF<7?NF:7); for(i=1;i<=n;i++) printf "%s%s", $i, (i<n?" ":"")}' \
               | sed 's/[[:punct:]]*$//')
             PHRASE="${PHRASE}."
             SRC="Hacker News (headline)"

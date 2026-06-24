@@ -866,11 +866,6 @@
     const el = document.getElementById('typed');
     if (!el) return;
     const phrases = ['AI that sees.', 'AI that ships.', 'AI that scales.', 'data into models.'];
-    // Live trending phrase, refreshed by a GitHub Action (data/trending.json). Falls back silently.
-    fetch('data/trending.json', { cache: 'no-store' })
-      .then(r => r.ok ? r.json() : null)
-      .then(d => { if (d && d.phrase) phrases.splice(1, 0, d.phrase); })
-      .catch(() => {});
     let p = 0, i = 0, deleting = false;
     function tick() {
       const word = phrases[p];
